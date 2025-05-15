@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kezod VPN Config Collector</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6a0dad;
+            --primary-dark: #4b0082;
+            --primary-light: #9b59b6;
+            --secondary: #2c3e50;
+            --text: #ecf0f1;
+            --text-secondary: #bdc3c7;
+            --success: #27ae60;
+            --error: #e74c3c;
+            --bg: #1a1a2e;
+            --card-bg: #16213e;
+        }
+        
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: var(--primary-light);
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            margin-bottom: 30px;
+            border-left: 4px solid var(--primary);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 16px;
+            transition: border 0.3s ease;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: var(--primary-light);
+        }
+        
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            background-color: var(--secondary);
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background-color: var(--secondary);
+        }
+        
+        .btn-secondary:hover {
+            background-color: #1a252f;
+        }
+        
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        .success {
+            background-color: rgba(39, 174, 96, 0.2);
+            border-left: 4px solid var(--success);
+        }
+        
+        .error {
+            background-color: rgba(231, 76, 60, 0.2);
+            border-left: 4px solid var(--error);
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .cooldown {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        .progress {
+            height: 100%;
+            background-color: var(--primary);
+            width: 0%;
+            transition: width 1s linear;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(106, 13, 173, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(106, 13, 173, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(106, 13, 173, 0); }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Kezod VPN Config Collector</h1>
+        <p>This service collects VPN configurations from vpngate.net and stores them in our database.</p>
+        
+        <div class="form-group">
+            <label for="contributor">Your Name (for contributor credit):</label>
+            <input type="text" id="contributor" required placeholder="Enter your name">
+        </div>
+        
+        <div class="btn-group">
+            <button id="startBtn" class="btn pulse">Start Collecting</button>
+            <button id="stopBtn" class="btn btn-secondary" disabled>Stop Collecting</button>
+        </div>
+        
+        <div class="cooldown">
+            <div>Next collection in: <span id="countdown">6:00</span></div>
+            <div class="progress-bar">
+                <div class="progress" id="progressBar"></div>
+            </div>
+        </div>
+        
+        <div id="status"></div>
+    </div>
+    
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBVIkJSEV8K8FCWo21xBm9nzFernst8WA0",
+            authDomain: "project-8821666855568342292.firebaseapp.com",
+            projectId: "project-8821666855568342292",
+            storageBucket: "project-8821666855568342292.firebasestorage.app",
+            messagingSenderId: "78266502948",
+            appId: "1:78266502948:web:89ad05f7f4462bf8b96db1",
+            databaseURL: "https://project-8821666855568342292-default-rtdb.firebaseio.com/"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        let collectionInterval;
+        let countdownInterval;
+        const COLLECTION_INTERVAL = 6 * 60 * 1000; // 6 minutes in milliseconds
+        const contributorInput = document.getElementById('contributor');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+        const countdownDisplay = document.getElementById('countdown');
+        const progressBar = document.getElementById('progressBar');
+        
+        startBtn.addEventListener('click', startCollection);
+        stopBtn.addEventListener('click', stopCollection);
+        
+        function updateStatus(message, isError = false) {
+            statusDiv.textContent = message;
+            statusDiv.className = isError ? 'error' : 'success';
+            statusDiv.style.display = 'block';
+        }
+        
+        function startCollection() {
+            const contributor = contributorInput.value.trim();
+            if (!contributor) {
+                updateStatus('Please enter your name', true);
+                return;
+            }
+            
+            updateStatus('Starting collection process...');
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            startBtn.classList.remove('pulse');
+            
+            // Run immediately and then every 6 minutes
+            collectData(contributor);
+            collectionInterval = setInterval(() => collectData(contributor), COLLECTION_INTERVAL);
+            
+            // Start countdown timer
+            startCountdown();
+        }
+        
+        function stopCollection() {
+            clearInterval(collectionInterval);
+            clearInterval(countdownInterval);
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            startBtn.classList.add('pulse');
+            updateStatus('Collection stopped');
+            countdownDisplay.textContent = '6:00';
+            progressBar.style.width = '0%';
+        }
+        
+        function startCountdown() {
+            let timeLeft = COLLECTION_INTERVAL / 1000; // Convert to seconds
+            updateCountdownDisplay(timeLeft);
+            
+            // Reset progress bar
+            progressBar.style.width = '0%';
+            setTimeout(() => {
+                progressBar.style.width = '100%';
+            }, 10);
+            
+            countdownInterval = setInterval(() => {
+                timeLeft--;
+                updateCountdownDisplay(timeLeft);
+                
+                if (timeLeft <= 0) {
+                    timeLeft = COLLECTION_INTERVAL / 1000;
+                }
+            }, 1000);
+        }
+        
+        function updateCountdownDisplay(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            countdownDisplay.textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+        
+        async function collectData(contributor) {
+            try {
+                updateStatus('Fetching data from vpngate.net...');
+                const proxyUrl = 'https://corsproxy.io/?url=';
+                const targetUrl = 'https://www.vpngate.net/api/iphone/';
+                const response = await fetch(proxyUrl + encodeURIComponent(targetUrl));
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const csvData = await response.text();
+                
+                // Parse CSV
+                const lines = csvData.split('\n').slice(2); // Skip header lines
+                const servers = [];
+                
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    const parts = line.split(',');
+                    if (parts.length < 15) continue;
+                    
+                    servers.push({
+                        hostName: parts[0],
+                        ip: parts[1],
+                        score: parts[2],
+                        ping: parts[3],
+                        speed: parts[4],
+                        countryLong: parts[5],
+                        countryShort: parts[6],
+                        numVpnSessions: parts[7],
+                        uptime: parts[8],
+                        totalUsers: parts[9],
+                        totalTraffic: parts[10],
+                        logType: parts[11],
+                        operator: parts[12],
+                        message: parts[13],
+                        openVPNConfigDataBase64: parts[14]
+                    });
+                }
+                
+                // Process servers
+                updateStatus(`Processing ${servers.length} servers...`);
+                let newCountries = 0;
+                let updatedCountries = 0;
+                
+                for (const server of servers) {
+                    if (!server.countryShort || !server.openVPNConfigDataBase64) continue;
+                    
+                    const countryRef = database.ref(`servers/${server.countryShort}`);
+                    const snapshot = await countryRef.once('value');
+                    
+                    const serverData = {
+                        config: server.openVPNConfigDataBase64,
+                        lastUpdated: firebase.database.ServerValue.TIMESTAMP,
+                        contributor: contributor,
+                        countryName: server.countryLong
+                    };
+                    
+                    if (!snapshot.exists()) {
+                        newCountries++;
+                    } else {
+                        updatedCountries++;
+                    }
+                    
+                    await countryRef.set(serverData);
+                }
+                
+                // Update contributor stats
+                if (newCountries > 0 || updatedCountries > 0) {
+                    const contributorRef = database.ref(`contributors/${contributor}`);
+                    const contributorSnapshot = await contributorRef.once('value');
+                    
+                    let currentCount = contributorSnapshot.exists() ? contributorSnapshot.val().count : 0;
+                    currentCount += newCountries;
+                    
+                    await contributorRef.set({
+                        count: currentCount,
+                        name: contributor,
+                        lastContribution: firebase.database.ServerValue.TIMESTAMP
+                    });
+                }
+                
+                updateStatus(`Collection complete. ${newCountries} new countries added, ${updatedCountries} existing countries updated.`);
+            } catch (error) {
+                updateStatus(`Error: ${error.message}`, true);
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>
