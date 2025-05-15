@@ -112,6 +112,13 @@
             color: var(--text-secondary);
         }
         
+        .search-hint {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 5px;
+            text-align: right;
+        }
+        
         .server-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -351,7 +358,8 @@
     <div class="container">
         <div class="search-container">
             <i class="fas fa-search search-icon"></i>
-            <input type="text" id="searchInput" placeholder="Search by country name or code...">
+            <input type="text" id="searchInput" placeholder="Search by country name, code, or author:username">
+            <div class="search-hint">Try: author:username to filter by contributor</div>
         </div>
         
         <h2 class="section-title">Available VPN Servers</h2>
@@ -401,21 +409,34 @@
         // Track existing countries to prevent animation spam
         const existingCountries = new Set();
         let initialLoad = true;
+        let allServers = [];
         
         // Load data
         function loadData() {
             // Load servers
             database.ref('servers').on('value', (snapshot) => {
                 const servers = snapshot.val();
-                displayServers(servers);
+                if (!servers) {
+                    serversContainer.innerHTML = '<div class="no-results">No servers available. Please check back later.</div>';
+                    return;
+                }
+                
+                // Convert to array, filter out ZZ country code, and sort by country name
+                allServers = Object.entries(servers)
+                    .filter(([code]) => code !== 'ZZ') // Filter out ZZ country code
+                    .map(([code, data]) => ({
+                        code,
+                        ...data
+                    }))
+                    .sort((a, b) => a.countryName.localeCompare(b.countryName));
+                
+                displayServers(allServers);
                 
                 // Update last updated time
-                if (servers) {
-                    const timestamps = Object.values(servers).map(s => s.lastUpdated);
-                    const latestUpdate = Math.max(...timestamps);
-                    const updateDate = new Date(latestUpdate);
-                    lastUpdatedDiv.textContent = `Last updated: ${updateDate.toLocaleDateString()} ${updateDate.toLocaleTimeString()}`;
-                }
+                const timestamps = Object.values(servers).map(s => s.lastUpdated);
+                const latestUpdate = Math.max(...timestamps);
+                const updateDate = new Date(latestUpdate);
+                lastUpdatedDiv.textContent = `Last updated: ${updateDate.toLocaleDateString()} ${updateDate.toLocaleTimeString()}`;
                 
                 initialLoad = false;
             });
@@ -428,21 +449,12 @@
         }
         
         function displayServers(servers) {
-            if (!servers) {
-                serversContainer.innerHTML = '<div class="no-results">No servers available. Please check back later.</div>';
+            if (servers.length === 0) {
+                serversContainer.innerHTML = '<div class="no-results">No servers match your search criteria.</div>';
                 return;
             }
             
-            // Convert to array, filter out ZZ country code, and sort by country name
-            const serverArray = Object.entries(servers)
-                .filter(([code]) => code !== 'ZZ') // Filter out ZZ country code
-                .map(([code, data]) => ({
-                    code,
-                    ...data
-                }))
-                .sort((a, b) => a.countryName.localeCompare(b.countryName));
-            
-            serversContainer.innerHTML = serverArray.map((server, index) => {
+            serversContainer.innerHTML = servers.map((server, index) => {
                 // Skip animation if country already exists (not initial load)
                 const animateClass = initialLoad || !existingCountries.has(server.code) ? 'fade-in' : '';
                 existingCountries.add(server.code);
@@ -529,27 +541,39 @@
             }
         }
         
-        // Search functionality
+        // Enhanced search functionality with author: filter
         searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
-            const cards = document.querySelectorAll('.server-card');
-            let hasResults = false;
             
-            cards.forEach(card => {
-                const countryName = card.querySelector('.country-name').textContent.toLowerCase();
-                const countryCode = card.querySelector('.country-code').textContent.toLowerCase();
-                
-                if (countryName.includes(searchTerm) || countryCode.includes(searchTerm)) {
-                    card.style.display = 'block';
-                    hasResults = true;
-                } else {
-                    card.style.display = 'none';
+            // Check for author: prefix
+            if (searchTerm.startsWith('author:')) {
+                const authorName = searchTerm.substring(7).trim(); // Get text after "author:"
+                if (authorName) {
+                    const filteredServers = allServers.filter(server => 
+                        server.contributor.toLowerCase().includes(authorName)
+                    );
+                    displayServers(filteredServers);
+                    return;
                 }
+            }
+            
+            // Regular search
+            if (searchTerm.trim() === '') {
+                displayServers(allServers);
+                return;
+            }
+            
+            const filteredServers = allServers.filter(server => {
+                const countryName = server.countryName.toLowerCase();
+                const countryCode = server.code.toLowerCase();
+                const contributor = server.contributor.toLowerCase();
+                
+                return countryName.includes(searchTerm) || 
+                       countryCode.includes(searchTerm) || 
+                       contributor.includes(searchTerm);
             });
             
-            if (!hasResults) {
-                serversContainer.innerHTML = '<div class="no-results">No servers match your search.</div>';
-            }
+            displayServers(filteredServers);
         });
         
         // Initialize
