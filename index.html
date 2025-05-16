@@ -54,6 +54,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         
         .logo {
@@ -75,6 +77,63 @@
             color: var(--text-secondary);
         }
         
+        .mobile-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+            padding: 8px 12px;
+            background-color: var(--card-bg);
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--secondary);
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: var(--primary);
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        /* Rest of your existing CSS remains the same */
         .container {
             max-width: 1200px;
             margin: 30px auto;
@@ -223,6 +282,7 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
+            text-decoration: none;
         }
         
         .download-btn:hover {
@@ -232,10 +292,6 @@
         
         .download-btn i {
             font-size: 16px;
-        }
-        
-        .download-link {
-            display: none;
         }
         
         .section-title {
@@ -314,68 +370,6 @@
             animation: spin 1s ease-in-out infinite;
         }
         
-        /* Mobile mode toggle styles */
-        .mobile-mode-toggle {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 1000;
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            cursor: pointer;
-        }
-        
-        .mobile-mode-active {
-            background-color: var(--success);
-        }
-        
-        .mobile-download-instructions {
-            display: none;
-            position: fixed;
-            bottom: 80px;
-            right: 20px;
-            background-color: var(--card-bg);
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            max-width: 250px;
-            z-index: 1000;
-            border-left: 4px solid var(--primary);
-        }
-        
-        .mobile-mode-active ~ .mobile-download-instructions {
-            display: block;
-        }
-        
-        /* Mobile-specific styles */
-        @media (hover: none) {
-            .download-btn {
-                pointer-events: none;
-            }
-            
-            .download-link {
-                display: block;
-                background-color: var(--primary);
-                color: white;
-                width: 100%;
-                padding: 12px;
-                border-radius: 6px;
-                font-weight: 600;
-                text-align: center;
-                text-decoration: none;
-                margin-top: 10px;
-            }
-        }
-        
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
@@ -404,6 +398,11 @@
                 gap: 10px;
             }
             
+            .mobile-toggle {
+                margin-left: 0;
+                margin-top: 10px;
+            }
+            
             .server-grid {
                 grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
             }
@@ -418,6 +417,13 @@
                 <span>Kezod Vpngate Server</span>
             </a>
             <div class="last-updated" id="lastUpdated">Loading...</div>
+            <div class="mobile-toggle">
+                <span>Mobile Mode</span>
+                <label class="switch">
+                    <input type="checkbox" id="mobileModeToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
         </div>
     </header>
     
@@ -447,14 +453,6 @@
         </div>
     </div>
     
-    <!-- Mobile mode toggle button -->
-    <button id="mobileToggle" class="mobile-mode-toggle" title="Toggle Mobile Mode">
-        <i class="fas fa-mobile-alt"></i>
-    </button>
-    <div class="mobile-download-instructions">
-        <p>Tap and hold on any download button, then select "Save Link" to download the config file.</p>
-    </div>
-    
     <footer>
         <p>Kezod Vpngate Server &copy; 2023 | All configurations sourced from vpngate.net</p>
     </footer>
@@ -479,16 +477,32 @@
         const leaderboardList = document.getElementById('leaderboardList');
         const searchInput = document.getElementById('searchInput');
         const lastUpdatedDiv = document.getElementById('lastUpdated');
-        const mobileToggle = document.getElementById('mobileToggle');
+        const mobileModeToggle = document.getElementById('mobileModeToggle');
         
         // Track existing countries to prevent animation spam
         const existingCountries = new Set();
         let initialLoad = true;
         let allServers = [];
-        let isMobileMode = false;
+        let mobileMode = false;
         
-        // Check if device is touch-enabled
-        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        // Check if user is on mobile
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+        
+        // Set initial mobile mode based on device detection
+        if (isMobileDevice()) {
+            mobileMode = true;
+            mobileModeToggle.checked = true;
+        }
+        
+        // Toggle mobile mode
+        mobileModeToggle.addEventListener('change', function() {
+            mobileMode = this.checked;
+            if (allServers.length > 0) {
+                displayServers(allServers);
+            }
+        });
         
         // Load data
         function loadData() {
@@ -505,7 +519,8 @@
                     .filter(([code]) => code !== 'ZZ') // Filter out ZZ country code
                     .map(([code, data]) => ({
                         code,
-                        ...data
+                        ...data,
+                        downloadUrl: generateDownloadUrl(data.config, code)
                     }))
                     .sort((a, b) => a.countryName.localeCompare(b.countryName));
                 
@@ -527,6 +542,17 @@
             });
         }
         
+        function generateDownloadUrl(base64Config, countryCode) {
+            try {
+                const configText = atob(base64Config);
+                const blob = new Blob([configText], { type: 'application/x-openvpn-profile' });
+                return URL.createObjectURL(blob);
+            } catch (error) {
+                console.error('Error generating download URL:', error);
+                return '#';
+            }
+        }
+        
         function displayServers(servers) {
             if (servers.length === 0) {
                 serversContainer.innerHTML = '<div class="no-results">No servers match your search criteria.</div>';
@@ -542,10 +568,14 @@
                 const updatedDate = new Date(server.lastUpdated);
                 const formattedTime = updatedDate.toLocaleDateString() + ' ' + updatedDate.toLocaleTimeString();
                 
-                // Create download URL
-                const configText = atob(server.config);
-                const blob = new Blob([configText], { type: 'application/x-openvpn-profile' });
-                const url = URL.createObjectURL(blob);
+                // Use href for mobile mode, onclick for desktop
+                const downloadElement = mobileMode ?
+                    `<a href="${server.downloadUrl}" download="kezod-vpn-${server.code}.ovpn" class="download-btn">
+                        <i class="fas fa-download"></i> Download Config
+                    </a>` :
+                    `<button class="download-btn" data-url="${server.downloadUrl}" data-country="${server.code}">
+                        <i class="fas fa-download"></i> Download Config
+                    </button>`;
                 
                 return `
                 <div class="server-card ${animateClass}" style="animation-delay: ${index * 0.05}s">
@@ -563,28 +593,17 @@
                         <div class="contributor">Contributed by: ${server.contributor}</div>
                         <div class="last-updated-time">Updated: ${formattedTime}</div>
                     </div>
-                    ${isMobileMode || isTouchDevice ? `
-                        <a href="${url}" download="kezod-vpn-${server.code}.ovpn" class="download-link">
-                            <i class="fas fa-download"></i> Download Config
-                        </a>
-                    ` : `
-                        <button class="download-btn" data-url="${url}" data-country="${server.code}">
-                            <i class="fas fa-download"></i> Download Config
-                        </button>
-                    `}
+                    ${downloadElement}
                 </div>
                 `;
             }).join('');
             
-            // Add download event listeners for desktop mode
-            if (!isMobileMode && !isTouchDevice) {
+            // Add click event listeners for desktop mode
+            if (!mobileMode) {
                 document.querySelectorAll('.download-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const url = e.target.getAttribute('data-url') || 
-                                     e.target.parentElement.getAttribute('data-url');
-                        const country = e.target.getAttribute('data-country') || 
-                                       e.target.parentElement.getAttribute('data-country');
-                        
+                    btn.addEventListener('click', function() {
+                        const url = this.getAttribute('data-url');
+                        const country = this.getAttribute('data-country');
                         const a = document.createElement('a');
                         a.href = url;
                         a.download = `kezod-vpn-${country}.ovpn`;
@@ -618,19 +637,6 @@
                     </span>
                 </div>
             `).join('');
-        }
-        
-        // Toggle mobile mode
-        mobileToggle.addEventListener('click', () => {
-            isMobileMode = !isMobileMode;
-            mobileToggle.classList.toggle('mobile-mode-active', isMobileMode);
-            displayServers(allServers);
-        });
-        
-        // Enable mobile mode by default on touch devices
-        if (isTouchDevice) {
-            isMobileMode = true;
-            mobileToggle.classList.add('mobile-mode-active');
         }
         
         // Enhanced search functionality with author: filter
@@ -670,6 +676,15 @@
         
         // Initialize
         loadData();
+        
+        // Clean up object URLs when page unloads
+        window.addEventListener('beforeunload', function() {
+            allServers.forEach(server => {
+                if (server.downloadUrl && server.downloadUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(server.downloadUrl);
+                }
+            });
+        });
     </script>
 </body>
 </html>
