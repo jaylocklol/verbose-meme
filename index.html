@@ -234,6 +234,10 @@
             font-size: 16px;
         }
         
+        .download-link {
+            display: none;
+        }
+        
         .section-title {
             font-size: 24px;
             font-weight: 700;
@@ -310,6 +314,68 @@
             animation: spin 1s ease-in-out infinite;
         }
         
+        /* Mobile mode toggle styles */
+        .mobile-mode-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+        }
+        
+        .mobile-mode-active {
+            background-color: var(--success);
+        }
+        
+        .mobile-download-instructions {
+            display: none;
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background-color: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            max-width: 250px;
+            z-index: 1000;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .mobile-mode-active ~ .mobile-download-instructions {
+            display: block;
+        }
+        
+        /* Mobile-specific styles */
+        @media (hover: none) {
+            .download-btn {
+                pointer-events: none;
+            }
+            
+            .download-link {
+                display: block;
+                background-color: var(--primary);
+                color: white;
+                width: 100%;
+                padding: 12px;
+                border-radius: 6px;
+                font-weight: 600;
+                text-align: center;
+                text-decoration: none;
+                margin-top: 10px;
+            }
+        }
+        
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
@@ -381,6 +447,14 @@
         </div>
     </div>
     
+    <!-- Mobile mode toggle button -->
+    <button id="mobileToggle" class="mobile-mode-toggle" title="Toggle Mobile Mode">
+        <i class="fas fa-mobile-alt"></i>
+    </button>
+    <div class="mobile-download-instructions">
+        <p>Tap and hold on any download button, then select "Save Link" to download the config file.</p>
+    </div>
+    
     <footer>
         <p>Kezod Vpngate Server &copy; 2023 | All configurations sourced from vpngate.net</p>
     </footer>
@@ -405,11 +479,16 @@
         const leaderboardList = document.getElementById('leaderboardList');
         const searchInput = document.getElementById('searchInput');
         const lastUpdatedDiv = document.getElementById('lastUpdated');
+        const mobileToggle = document.getElementById('mobileToggle');
         
         // Track existing countries to prevent animation spam
         const existingCountries = new Set();
         let initialLoad = true;
         let allServers = [];
+        let isMobileMode = false;
+        
+        // Check if device is touch-enabled
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         
         // Load data
         function loadData() {
@@ -463,6 +542,11 @@
                 const updatedDate = new Date(server.lastUpdated);
                 const formattedTime = updatedDate.toLocaleDateString() + ' ' + updatedDate.toLocaleTimeString();
                 
+                // Create download URL
+                const configText = atob(server.config);
+                const blob = new Blob([configText], { type: 'application/x-openvpn-profile' });
+                const url = URL.createObjectURL(blob);
+                
                 return `
                 <div class="server-card ${animateClass}" style="animation-delay: ${index * 0.05}s">
                     <div class="flag-container">
@@ -479,23 +563,37 @@
                         <div class="contributor">Contributed by: ${server.contributor}</div>
                         <div class="last-updated-time">Updated: ${formattedTime}</div>
                     </div>
-                    <button class="download-btn" data-config="${server.config}" data-country="${server.code}">
-                        <i class="fas fa-download"></i> Download Config
-                    </button>
+                    ${isMobileMode || isTouchDevice ? `
+                        <a href="${url}" download="kezod-vpn-${server.code}.ovpn" class="download-link">
+                            <i class="fas fa-download"></i> Download Config
+                        </a>
+                    ` : `
+                        <button class="download-btn" data-url="${url}" data-country="${server.code}">
+                            <i class="fas fa-download"></i> Download Config
+                        </button>
+                    `}
                 </div>
                 `;
             }).join('');
             
-            // Add download event listeners
-            document.querySelectorAll('.download-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const config = e.target.getAttribute('data-config') || 
-                                 e.target.parentElement.getAttribute('data-config');
-                    const country = e.target.getAttribute('data-country') || 
-                                   e.target.parentElement.getAttribute('data-country');
-                    downloadConfig(config, country);
+            // Add download event listeners for desktop mode
+            if (!isMobileMode && !isTouchDevice) {
+                document.querySelectorAll('.download-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const url = e.target.getAttribute('data-url') || 
+                                     e.target.parentElement.getAttribute('data-url');
+                        const country = e.target.getAttribute('data-country') || 
+                                       e.target.parentElement.getAttribute('data-country');
+                        
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `kezod-vpn-${country}.ovpn`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    });
                 });
-            });
+            }
         }
         
         function displayLeaderboard(contributors) {
@@ -522,23 +620,17 @@
             `).join('');
         }
         
-        function downloadConfig(base64Config, countryCode) {
-            try {
-                const configText = atob(base64Config);
-                const blob = new Blob([configText], { type: 'application/x-openvpn-profile' });
-                const url = URL.createObjectURL(blob);
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `kezod-vpn-${countryCode}.ovpn`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            } catch (error) {
-                alert('Error downloading config. Please try another server.');
-                console.error(error);
-            }
+        // Toggle mobile mode
+        mobileToggle.addEventListener('click', () => {
+            isMobileMode = !isMobileMode;
+            mobileToggle.classList.toggle('mobile-mode-active', isMobileMode);
+            displayServers(allServers);
+        });
+        
+        // Enable mobile mode by default on touch devices
+        if (isTouchDevice) {
+            isMobileMode = true;
+            mobileToggle.classList.add('mobile-mode-active');
         }
         
         // Enhanced search functionality with author: filter
